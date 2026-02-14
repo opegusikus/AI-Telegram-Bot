@@ -2,26 +2,27 @@ import telebot
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import textwrap
+import re
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="MarkdownV2")
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.deepseek.com")
 
 users = {}
-
+#Maximum answer length is 2048 symbols.
 final_instructions = ""
-system_instructions = f"""
+system_instructions = fr"""
 Listen and obey all instructions here.
 You are useful AI agent.
-Maximum answer length is 2048 symbols.
 Next are user instructions if present:"""
 
 def remember_user(message):
-        #print('Im in remember user for {users[user_id][\'username\']}')
+        #print('Im in remember user for {users[user_id]['username']}')
         user_id = message.chat.id
 
         if user_id not in users:
@@ -54,7 +55,7 @@ def user_settings(message):
 def ask_ai(prompt):   
         response = client.chat.completions.create(
                 model="deepseek-chat",
-                max_tokens=1024,
+                #max_tokens=1024,
                 temperature=0.3,
                 messages=[
                         {"role": "system", "content": final_instructions},
@@ -63,18 +64,19 @@ def ask_ai(prompt):
                 #stream=False
                 )
         #print(response)
-        if type(response.choices[0].message.content) == 'str':
-                print('\nAI answered')
         return response.choices[0].message.content
+
+#def escape_mdv2(text):
+#       return re.sub(r'([_*\[\]~>#+\-=|(){}.!])', r'\\\1', text)
 
 @bot.message_handler(content_types=['text'])
 @bot.message_handler(func=lambda m: True)
 def handle_message(message):
         user_id = message.chat.id
         remember_user(message)
-        print(f'Id: {message.chat.id}, user: {message.chat.username}')
+        print(f'Id: {message.chat.id}, user: {message.chat.username}, message: {message.text}')
         #print(message)
-        print(f'Im in message handler for {users[user_id][\'username\']}')
+        #print(f'Im in message handler for {users[user_id]['username']}')
         if users[user_id]['user_state'] == "waiting_for_instructions":
                 users[user_id]['instructions'] = message.text
                 users[user_id]['user_state'] = None
@@ -83,7 +85,19 @@ def handle_message(message):
                 print(final_instructions)
                 return
         answer = ask_ai(message.text)
-        bot.reply_to(message, answer)
+        answer_length = len(answer)
+        print(answer)
+        chunk_size = 4096
         
-
+        if answer_length >= chunk_size:
+                chunks = [answer[i:i + chunk_size] for i in range(0, len(answer), chunk_size)]
+                chunks = textwrap.wrap(answer, width=4096, break_long_words=False, replace_whitespace=False)
+                #print(f'\nAI answered to user: {users[user_id]['name']}, language used: {users[user_id]['language']}')
+                print(len(chunks))
+                for i in range(0, len(chunks)):
+                        bot.reply_to(message, chunks[i])
+        else:
+                print(type(answer))
+                bot.reply_to(message, answer)
+                
 bot.infinity_polling()
