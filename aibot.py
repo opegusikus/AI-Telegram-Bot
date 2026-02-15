@@ -10,7 +10,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="MarkdownV2")
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.deepseek.com")
 
 users = {}
