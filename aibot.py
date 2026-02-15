@@ -1,16 +1,17 @@
-import telebot
+from telebot.async_telebot import AsyncTeleBot
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import textwrap
 import re
+import asyncio
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
+bot = AsyncTeleBot(BOT_TOKEN, parse_mode=None)
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.deepseek.com")
 
 users = {}
@@ -38,19 +39,29 @@ def remember_user(message):
                 users[user_id]['language'] = message.from_user.language_code
         return users
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
+@bot.message_handler(commands=['start'])
+async def send_welcome(message):
         remember_user(message)
         
         print(users)
-        bot.reply_to(message, "This is custom AI agent based on Deepseek. Just write message normaly AI will answer. \nYou can input your custom instructions to this agent /custominstruction")
+        await bot.reply_to(message, """This is custom AI agent based on Deepseek.
+Just write message normaly AI will answer.
+List of all commands /help""")
 
-@bot.message_handler(commands=['custominstruction'])
-def user_settings(message):
+@bot.message_handler(commands=['help'])
+async def help(message):
+        await bot.reply_to(message, """To write a prompt just send a message as you do normaly.
+/custominstructions - write your preferences about responces etc to AI.
+/help - this menu
+
+""")
+
+@bot.message_handler(commands=['custominstructions'])
+async def user_settings(message):
         remember_user(message)
         user_id = message.chat.id
         users[user_id]['user_state'] = "waiting_for_instructions"
-        bot.reply_to(message, 'Now send your instructions to the AI agent')
+        await bot.reply_to(message, 'Now send your instructions to the AI agent')
 
 def ask_ai(prompt):   
         response = client.chat.completions.create(
@@ -71,7 +82,7 @@ def ask_ai(prompt):
 
 @bot.message_handler(content_types=['text'])
 @bot.message_handler(func=lambda m: True)
-def handle_message(message):
+async def handle_message(message):
         user_id = message.chat.id
         remember_user(message)
         print(f'Id: {message.chat.id}, user: {message.chat.username}, message: {message.text}')
@@ -80,7 +91,7 @@ def handle_message(message):
         if users[user_id]['user_state'] == "waiting_for_instructions":
                 users[user_id]['instructions'] = message.text
                 users[user_id]['user_state'] = None
-                bot.reply_to(message, "Instructions applied!")
+                await bot.reply_to(message, "Instructions applied!")
                 final_instructions = system_instructions + "\n" + users[user_id]['instructions']
                 print(final_instructions)
                 return
@@ -95,9 +106,9 @@ def handle_message(message):
                 #print(f'\nAI answered to user: {users[user_id]['name']}, language used: {users[user_id]['language']}')
                 print(len(chunks))
                 for i in range(0, len(chunks)):
-                        bot.reply_to(message, chunks[i])
+                        await bot.reply_to(message, chunks[i])
         else:
                 print(type(answer))
-                bot.reply_to(message, answer)
+                await bot.reply_to(message, answer)
                 
-bot.infinity_polling()
+asyncio.run(bot.polling())
