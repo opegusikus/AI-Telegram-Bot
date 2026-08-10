@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import textwrap
 import re
 import asyncio
+from handlers import clean_markdown_response
 
 load_dotenv()
 
@@ -96,8 +97,10 @@ async def handle_message(message):
                 print(final_instructions)
                 return
         answer = ask_ai(message.text)
+        print("Before clean:", answer)
+        answer = clean_markdown_response(answer)
+        print("After clean:", answer)
         answer_length = len(answer)
-        print(answer)
         chunk_size = 4096
         
         if answer_length >= chunk_size:
